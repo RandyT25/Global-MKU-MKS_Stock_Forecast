@@ -76,7 +76,11 @@ export const useAppStore = create<AppState>()(
         deals: state.deals.map(d => d.id === id ? { ...d, ...partial } : d),
       })),
       removeDeal: (id) => set(state => ({ deals: state.deals.filter(d => d.id !== id) })),
-      addLostOrder: (order) => set(state => ({ lostOrders: [...state.lostOrders, order] })),
+      addLostOrder: (order) => set(state => {
+        const key = `${order.soNumber}-${order.div}-${order.product}`;
+        if (state.lostOrders.some(o => `${o.soNumber}-${o.div}-${o.product}` === key)) return state;
+        return { lostOrders: [...state.lostOrders, order] };
+      }),
       updateLostOrder: (id, partial) => set(state => ({
         lostOrders: state.lostOrders.map(o => o.id === id ? { ...o, ...partial } : o),
       })),

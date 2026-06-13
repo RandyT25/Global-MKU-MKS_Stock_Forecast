@@ -89,6 +89,7 @@ export function Deliveries() {
           customer:     r.customer,
           sales:        r.sales,
           product:      r.product,
+          code:         r.code,
           qtyOrdered:   r.qtySO,
           unit:         r.unit,
           qtyDelivered: r.qtyKirim,

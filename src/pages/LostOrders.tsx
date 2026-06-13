@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import { formatRp } from '../utils/forecast';
@@ -18,46 +18,52 @@ function toYearMonth(dateStr: string): string {
 }
 
 export function LostOrders() {
-  const { lostOrders, addLostOrder, removeLostOrder, setLostOrders } = useAppStore();
+  const { lostOrders, addLostOrder, removeLostOrder, setLostOrders, productSetups } = useAppStore();
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<Omit<LostOrder, 'id'>>({
     div: 'MKS', date: '', soNumber: '', customer: '', sales: '', product: '',
     qtyOrdered: 0, unit: '', qtyDelivered: 0, qtyLost: 0, status: 'UNFULFILLED', unitPrice: 0, valueLost: 0,
   });
 
-  const totalLines = lostOrders.length;
-  const totalValue = lostOrders.reduce((s, o) => s + o.valueLost, 0);
+  // Auto-dedup existing entries on mount (cleans up any duplicates from before the store guard was added)
+  useEffect(() => {
+    const seen = new Set<string>();
+    const deduped = lostOrders.filter(o => {
+      const k = `${o.soNumber}-${o.div}-${o.product}`;
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+    if (deduped.length !== lostOrders.length) setLostOrders(deduped);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Enrich orders: resolve unitPrice from productSetups when stored price is 0
+  const enriched = useMemo(() =>
+    lostOrders.map(o => {
+      let unitPrice = o.unitPrice;
+      if (unitPrice === 0 && o.code) {
+        const setup = productSetups.find(p => p.code === o.code && p.div === o.div);
+        if (setup?.unitPrice) unitPrice = setup.unitPrice;
+      }
+      const valueLost = o.qtyLost * unitPrice;
+      return { ...o, unitPrice, valueLost };
+    }),
+    [lostOrders, productSetups]
+  );
+
+  const totalValue = enriched.reduce((s, o) => s + o.valueLost, 0);
 
   const byMonth = useMemo(() => {
     const map: Record<string, { lines: number; value: number }> = {};
-    lostOrders.forEach(o => {
+    enriched.forEach(o => {
       const key = toYearMonth(o.date);
       if (!map[key]) map[key] = { lines: 0, value: 0 };
       map[key].lines++;
       map[key].value += o.valueLost;
     });
     return Object.entries(map).sort((a, b) => b[0].localeCompare(a[0]));
-  }, [lostOrders]);
-
-  const hasDuplicates = useMemo(() => {
-    const seen = new Set<string>();
-    return lostOrders.some(o => {
-      const k = `${o.soNumber}-${o.div}-${o.product}`;
-      if (seen.has(k)) return true;
-      seen.add(k);
-      return false;
-    });
-  }, [lostOrders]);
-
-  const removeDuplicates = () => {
-    const seen = new Set<string>();
-    setLostOrders(lostOrders.filter(o => {
-      const k = `${o.soNumber}-${o.div}-${o.product}`;
-      if (seen.has(k)) return false;
-      seen.add(k);
-      return true;
-    }));
-  };
+  }, [enriched]);
 
   const handleAdd = () => {
     if (!form.customer || !form.product) return;
@@ -75,33 +81,23 @@ export function LostOrders() {
           <h1 className="text-xl font-bold text-gray-900">Lost Orders — Unfulfilled Shipments Tracker</h1>
           <p className="text-sm text-gray-500 mt-0.5">All unfulfilled delivery lines across all dates</p>
         </div>
-        <div className="flex gap-2">
-          {hasDuplicates && (
-            <button
-              onClick={removeDuplicates}
-              className="px-4 py-2 bg-orange-500 text-white rounded-lg text-sm font-medium hover:bg-orange-600"
-            >
-              Remove Duplicates
-            </button>
-          )}
-          <button
-            onClick={() => setShowForm(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
-          >
-            <Plus size={14} /> Add Lost Order
-          </button>
-        </div>
+        <button
+          onClick={() => setShowForm(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
+        >
+          <Plus size={14} /> Add Lost Order
+        </button>
       </div>
 
       {/* Summary */}
       <div className="grid grid-cols-4 gap-4 mb-5">
         <div className="bg-white rounded-xl border border-gray-200 p-4">
           <div className="text-sm text-gray-500">Total Lines</div>
-          <div className="text-3xl font-bold text-gray-900 mt-1">{totalLines}</div>
+          <div className="text-3xl font-bold text-gray-900 mt-1">{enriched.length}</div>
         </div>
         <div className="bg-white rounded-xl border border-gray-200 p-4">
           <div className="text-sm text-gray-500">Unfulfilled</div>
-          <div className="text-3xl font-bold text-red-600 mt-1">{lostOrders.filter(o => o.status === 'UNFULFILLED').length}</div>
+          <div className="text-3xl font-bold text-red-600 mt-1">{enriched.filter(o => o.status !== 'FULFILLED').length}</div>
         </div>
         <div className="bg-white rounded-xl border border-red-200 bg-red-50 p-4">
           <div className="text-sm text-red-600">Value Lost</div>
@@ -174,7 +170,7 @@ export function LostOrders() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {lostOrders.map(order => (
+                  {enriched.map(order => (
                     <tr key={order.id} className="hover:bg-red-50/30">
                       <td className="px-3 py-2">
                         <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${order.div === 'MKS' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}`}>
@@ -199,11 +195,11 @@ export function LostOrders() {
                       </td>
                     </tr>
                   ))}
-                  {lostOrders.length === 0 && (
+                  {enriched.length === 0 && (
                     <tr><td colSpan={11} className="px-3 py-8 text-center text-gray-400">No lost orders recorded</td></tr>
                   )}
                 </tbody>
-                {lostOrders.length > 0 && (
+                {enriched.length > 0 && (
                   <tfoot>
                     <tr className="bg-red-50 font-medium border-t border-red-200">
                       <td colSpan={8} className="px-3 py-2 text-right text-sm text-gray-600">Total value lost:</td>

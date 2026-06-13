@@ -88,6 +88,7 @@ export interface LostOrder {
   customer: string;
   sales: string;
   product: string;
+  code?: string;
   qtyOrdered: number;
   unit: string;
   qtyDelivered: number;
