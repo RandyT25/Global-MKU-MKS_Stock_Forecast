@@ -355,17 +355,43 @@ export function parsePendingCSV(text: string, div: Div): PendingPORow[] {
   }).filter((r): r is PendingPORow => r !== null);
 }
 
-// Parses numbers from Indonesian Excel exports.
-// Handles scientific notation (1.635000e+06), Indonesian thousands-dot format
-// (1.635.000), European comma-decimal (1.635.000,50), and plain integers.
+// Parses numbers from Indonesian/Excel exports.
+// Handles all common formats:
+//   Indonesian/European thousands: 1.635.000 | 1.635.000,89
+//   US format (comma thousands, dot decimal): 1,635,000 | 1,635,000.89
+//   Plain: 1635000 | 1635000.89 | 2,00 (comma-decimal)
 function parseIdrNum(s: string): number {
   const str = (s || '').trim().replace(/[^0-9.,eE+\-]/g, '');
   if (!str) return 0;
   if (/[eE]/.test(str)) return parseFloat(str) || 0;
+
   const dots = (str.match(/\./g) || []).length;
-  if (dots > 1 || (dots === 1 && str.includes(','))) {
+
+  // Multiple dots → Indonesian/European thousands (1.234.567 or 1.234.567,89)
+  if (dots > 1) {
     return parseFloat(str.replace(/\./g, '').replace(',', '.')) || 0;
   }
+
+  if (dots === 1 && str.includes(',')) {
+    // Single dot + comma(s): position determines which is the decimal separator
+    if (str.lastIndexOf(',') < str.lastIndexOf('.')) {
+      // US format: commas are thousands separators, dot is decimal (1,234,567.89)
+      return parseFloat(str.replace(/,/g, '')) || 0;
+    }
+    // Indonesian: dot is thousands, comma is decimal (1.234,89)
+    return parseFloat(str.replace(/\./g, '').replace(',', '.')) || 0;
+  }
+
+  if (!str.includes('.') && str.includes(',')) {
+    const parts = str.split(',');
+    // Multiple commas OR single comma with exactly 3 trailing digits → US thousands
+    if (parts.length > 2 || (parts.length === 2 && (parts[1]?.length ?? 0) === 3)) {
+      return parseFloat(str.replace(/,/g, '')) || 0;
+    }
+    // Single comma with 1–2 digits → decimal separator (2,00 = 2.00)
+    return parseFloat(str.replace(',', '.')) || 0;
+  }
+
   return parseFloat(str) || 0;
 }
 
