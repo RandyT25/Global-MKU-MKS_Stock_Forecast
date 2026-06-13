@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { parseISO } from 'date-fns';
 import { Search, Filter } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
@@ -6,11 +6,15 @@ import { computeForecast } from '../utils/forecast';
 import { StatusBadge, getStatusColor } from '../components/StatusBadge';
 import type { StockStatus, Div } from '../types';
 
-export function ForecastEngine() {
+export function ForecastEngine({ initialStatus = 'ALL' }: { initialStatus?: string }) {
   const { mkuStock, mksStock, productSetups, deals, settings } = useAppStore();
   const [search, setSearch] = useState('');
   const [filterDiv, setFilterDiv] = useState<Div | 'ALL'>('ALL');
-  const [filterStatus, setFilterStatus] = useState<StockStatus | 'ALL'>('ALL');
+  const [filterStatus, setFilterStatus] = useState<StockStatus | 'ALL'>(initialStatus as StockStatus | 'ALL');
+
+  useEffect(() => {
+    setFilterStatus(initialStatus as StockStatus | 'ALL');
+  }, [initialStatus]);
   const [sortKey, setSortKey] = useState<'actionRank' | 'daysLeft' | 'product'>('actionRank');
 
   const forecast = useMemo(() =>

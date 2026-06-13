@@ -16,7 +16,7 @@ const SUMMARY_CONFIG = [
   { status: 'OK' as StockStatus, color: 'bg-emerald-500', textColor: 'text-white', label: 'OK' },
 ];
 
-export function Dashboard({ onNavigate }: { onNavigate: (page: string) => void }) {
+export function Dashboard({ onNavigate }: { onNavigate: (page: string, filter?: string) => void }) {
   const { mkuStock, mksStock, productSetups, deals, settings, lostOrders } = useAppStore();
 
   const forecast = useMemo(() =>
@@ -58,7 +58,7 @@ export function Dashboard({ onNavigate }: { onNavigate: (page: string) => void }
         {SUMMARY_CONFIG.map(cfg => (
           <button
             key={cfg.status}
-            onClick={() => onNavigate('forecast')}
+            onClick={() => onNavigate('forecast', cfg.status)}
             className={`${cfg.color} ${cfg.textColor} rounded-lg p-4 text-center shadow-sm hover:opacity-90 transition-opacity`}
           >
             <div className="text-3xl font-bold">{counts[cfg.status]}</div>

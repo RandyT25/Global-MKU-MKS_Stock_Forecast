@@ -26,10 +26,12 @@ function getPageFromHash(): string {
 
 export default function App() {
   const [page, setPage] = useState(getPageFromHash);
+  const [forecastFilter, setForecastFilter] = useState('ALL');
 
-  const navigate = (p: string) => {
+  const navigate = (p: string, filter?: string) => {
     window.location.hash = p;
     setPage(p);
+    if (filter !== undefined) setForecastFilter(filter);
   };
 
   useEffect(() => {
@@ -41,7 +43,7 @@ export default function App() {
   const renderPage = () => {
     switch (page) {
       case 'dashboard':    return <Dashboard onNavigate={navigate} />;
-      case 'forecast':     return <ForecastEngine />;
+      case 'forecast':     return <ForecastEngine initialStatus={forecastFilter} />;
       case 'purchasing':   return <Purchasing />;
       case 'stock-input':  return <StockInput />;
       case 'sales-global': return <SalesGlobal />;
