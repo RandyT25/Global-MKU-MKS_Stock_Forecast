@@ -33,7 +33,7 @@ const ROW_BG: Record<string, string> = {
 };
 
 export function Deliveries() {
-  const { deliveryMku, deliveryMks, setDeliveryMku, setDeliveryMks, appendDeliveryMku, appendDeliveryMks, addLostOrder, lostOrders } = useAppStore();
+  const { deliveryMku, deliveryMks, setDeliveryMku, setDeliveryMks, appendDeliveryMku, appendDeliveryMks, addLostOrder, lostOrders, productSetups } = useAppStore();
   const [tab, setTab] = useState<DivTab>('MKU');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
   const [search, setSearch] = useState('');
@@ -78,22 +78,26 @@ export function Deliveries() {
     );
     const newOrders: LostOrder[] = unfulfilled
       .filter(r => !existingKeys.has(`${r.soNumber}-${r.div}-${r.product}`))
-      .map(r => ({
-        id:           `${r.soNumber}-${r.div}-${r.product}-${Date.now()}`,
-        div:          r.div,
-        date:         r.date,
-        soNumber:     r.soNumber,
-        customer:     r.customer,
-        sales:        r.sales,
-        product:      r.product,
-        qtyOrdered:   r.qtySO,
-        unit:         r.unit,
-        qtyDelivered: r.qtyKirim,
-        qtyLost:      r.qtySisa,
-        status:       'OPEN',
-        unitPrice:    0,
-        valueLost:    0,
-      }));
+      .map(r => {
+        const setup = productSetups.find(p => p.code === r.code && p.div === r.div);
+        const unitPrice = setup?.unitPrice ?? 0;
+        return {
+          id:           `${r.soNumber}-${r.div}-${r.product}-${Date.now()}`,
+          div:          r.div,
+          date:         r.date,
+          soNumber:     r.soNumber,
+          customer:     r.customer,
+          sales:        r.sales,
+          product:      r.product,
+          qtyOrdered:   r.qtySO,
+          unit:         r.unit,
+          qtyDelivered: r.qtyKirim,
+          qtyLost:      r.qtySisa,
+          status:       'OPEN',
+          unitPrice,
+          valueLost:    r.qtySisa * unitPrice,
+        };
+      });
 
     newOrders.forEach(o => addLostOrder(o));
     setPushMsg(
