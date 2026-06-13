@@ -4,8 +4,21 @@ import { useAppStore } from '../store/appStore';
 import { formatRp } from '../utils/forecast';
 import type { LostOrder } from '../types';
 
+const MONTH_NUM: Record<string, string> = {
+  jan:'01',feb:'02',mar:'03',apr:'04',may:'05',jun:'06',
+  jul:'07',aug:'08',sep:'09',oct:'10',nov:'11',dec:'12',
+};
+
+function toYearMonth(dateStr: string): string {
+  if (!dateStr) return '';
+  if (/^\d{4}-\d{2}/.test(dateStr)) return dateStr.slice(0, 7);
+  const m = dateStr.match(/(\d{1,2})[\/\-]([A-Za-z]{3})[\/\-](\d{4})/);
+  if (m) return `${m[3]}-${MONTH_NUM[m[2].toLowerCase()] ?? '??'}`;
+  return dateStr.slice(0, 7);
+}
+
 export function LostOrders() {
-  const { lostOrders, addLostOrder, removeLostOrder } = useAppStore();
+  const { lostOrders, addLostOrder, removeLostOrder, setLostOrders } = useAppStore();
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<Omit<LostOrder, 'id'>>({
     div: 'MKS', date: '', soNumber: '', customer: '', sales: '', product: '',
@@ -18,13 +31,33 @@ export function LostOrders() {
   const byMonth = useMemo(() => {
     const map: Record<string, { lines: number; value: number }> = {};
     lostOrders.forEach(o => {
-      const key = o.date.slice(0, 7);
+      const key = toYearMonth(o.date);
       if (!map[key]) map[key] = { lines: 0, value: 0 };
       map[key].lines++;
       map[key].value += o.valueLost;
     });
     return Object.entries(map).sort((a, b) => b[0].localeCompare(a[0]));
   }, [lostOrders]);
+
+  const hasDuplicates = useMemo(() => {
+    const seen = new Set<string>();
+    return lostOrders.some(o => {
+      const k = `${o.soNumber}-${o.div}-${o.product}`;
+      if (seen.has(k)) return true;
+      seen.add(k);
+      return false;
+    });
+  }, [lostOrders]);
+
+  const removeDuplicates = () => {
+    const seen = new Set<string>();
+    setLostOrders(lostOrders.filter(o => {
+      const k = `${o.soNumber}-${o.div}-${o.product}`;
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    }));
+  };
 
   const handleAdd = () => {
     if (!form.customer || !form.product) return;
@@ -42,12 +75,22 @@ export function LostOrders() {
           <h1 className="text-xl font-bold text-gray-900">Lost Orders — Unfulfilled Shipments Tracker</h1>
           <p className="text-sm text-gray-500 mt-0.5">All unfulfilled delivery lines across all dates</p>
         </div>
-        <button
-          onClick={() => setShowForm(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
-        >
-          <Plus size={14} /> Add Lost Order
-        </button>
+        <div className="flex gap-2">
+          {hasDuplicates && (
+            <button
+              onClick={removeDuplicates}
+              className="px-4 py-2 bg-orange-500 text-white rounded-lg text-sm font-medium hover:bg-orange-600"
+            >
+              Remove Duplicates
+            </button>
+          )}
+          <button
+            onClick={() => setShowForm(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
+          >
+            <Plus size={14} /> Add Lost Order
+          </button>
+        </div>
       </div>
 
       {/* Summary */}

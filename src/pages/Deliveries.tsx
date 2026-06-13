@@ -33,11 +33,11 @@ const ROW_BG: Record<string, string> = {
 };
 
 export function Deliveries() {
-  const { deliveryMku, deliveryMks, setDeliveryMku, setDeliveryMks, appendDeliveryMku, appendDeliveryMks, addLostOrder } = useAppStore();
+  const { deliveryMku, deliveryMks, setDeliveryMku, setDeliveryMks, appendDeliveryMku, appendDeliveryMks, addLostOrder, lostOrders } = useAppStore();
   const [tab, setTab] = useState<DivTab>('MKU');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
   const [search, setSearch] = useState('');
-  const [pushedKeys] = useState<Set<string>>(new Set());
+  const [pushMsg, setPushMsg] = useState('');
 
   const rows = tab === 'MKU' ? deliveryMku : deliveryMks;
 
@@ -73,10 +73,13 @@ export function Deliveries() {
   };
 
   const pushToLostOrders = () => {
+    const existingKeys = new Set(
+      lostOrders.map(o => `${o.soNumber}-${o.div}-${o.product}`)
+    );
     const newOrders: LostOrder[] = unfulfilled
-      .filter(r => !pushedKeys.has(`${r.soNumber}-${r.code}-${r.div}`))
+      .filter(r => !existingKeys.has(`${r.soNumber}-${r.div}-${r.product}`))
       .map(r => ({
-        id:           `${r.soNumber}-${r.code}-${r.div}-${Date.now()}-${Math.random()}`,
+        id:           `${r.soNumber}-${r.div}-${r.product}-${Date.now()}`,
         div:          r.div,
         date:         r.date,
         soNumber:     r.soNumber,
@@ -92,10 +95,13 @@ export function Deliveries() {
         valueLost:    0,
       }));
 
-    newOrders.forEach(o => {
-      addLostOrder(o);
-      pushedKeys.add(`${o.soNumber}-${o.div}`);
-    });
+    newOrders.forEach(o => addLostOrder(o));
+    setPushMsg(
+      newOrders.length > 0
+        ? `${newOrders.length} item${newOrders.length > 1 ? 's' : ''} pushed to Lost Orders.`
+        : 'All unfulfilled items already in Lost Orders — nothing new to push.'
+    );
+    setTimeout(() => setPushMsg(''), 4000);
   };
 
   return (
@@ -157,6 +163,12 @@ export function Deliveries() {
               </button>
             )}
           </div>
+
+          {pushMsg && (
+            <div className="mb-3 px-4 py-2.5 rounded-lg bg-green-50 border border-green-200 text-sm text-green-700 font-medium">
+              {pushMsg}
+            </div>
+          )}
 
           {/* Table */}
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">

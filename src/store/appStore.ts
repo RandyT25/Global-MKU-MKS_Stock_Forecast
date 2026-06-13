@@ -28,6 +28,7 @@ interface AppState {
   addLostOrder: (order: LostOrder) => void;
   updateLostOrder: (id: string, order: Partial<LostOrder>) => void;
   removeLostOrder: (id: string) => void;
+  setLostOrders: (orders: LostOrder[]) => void;
   setSales: (rows: SaleRow[]) => void;
   appendSales: (rows: SaleRow[]) => void;
   setDeliveryMku: (rows: DeliveryRow[]) => void;
@@ -80,6 +81,7 @@ export const useAppStore = create<AppState>()(
         lostOrders: state.lostOrders.map(o => o.id === id ? { ...o, ...partial } : o),
       })),
       removeLostOrder: (id) => set(state => ({ lostOrders: state.lostOrders.filter(o => o.id !== id) })),
+      setLostOrders: (orders) => set({ lostOrders: orders }),
       setSales: (rows) => set({ sales: rows }),
       appendSales: (rows) => set(state => ({ sales: [...state.sales, ...rows] })),
       setDeliveryMku: (rows) => set({ deliveryMku: rows }),
