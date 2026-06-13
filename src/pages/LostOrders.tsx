@@ -18,14 +18,14 @@ function toYearMonth(dateStr: string): string {
 }
 
 export function LostOrders() {
-  const { lostOrders, addLostOrder, removeLostOrder, setLostOrders, productSetups } = useAppStore();
+  const { lostOrders, addLostOrder, removeLostOrder, setLostOrders, productSetups, sales } = useAppStore();
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<Omit<LostOrder, 'id'>>({
     div: 'MKS', date: '', soNumber: '', customer: '', sales: '', product: '',
     qtyOrdered: 0, unit: '', qtyDelivered: 0, qtyLost: 0, status: 'UNFULFILLED', unitPrice: 0, valueLost: 0,
   });
 
-  // Auto-dedup existing entries on mount (cleans up any duplicates from before the store guard was added)
+  // Auto-dedup existing entries on mount
   useEffect(() => {
     const seen = new Set<string>();
     const deduped = lostOrders.filter(o => {
@@ -38,7 +38,30 @@ export function LostOrders() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Enrich orders: resolve unitPrice from productSetups when stored price is 0
+  // Build average unit price from sales history: code+div → avg DPP per unit
+  const salesPrice = useMemo(() => {
+    const byCode: Record<string, { tv: number; tq: number }> = {};
+    const byName: Record<string, { tv: number; tq: number }> = {};
+    sales.forEach(s => {
+      if (s.qty > 0 && s.total > 0) {
+        const ck = `${s.code}|${s.div}`;
+        if (!byCode[ck]) byCode[ck] = { tv: 0, tq: 0 };
+        byCode[ck].tv += s.total;
+        byCode[ck].tq += s.qty;
+        const nk = `${s.product.toLowerCase()}|${s.div}`;
+        if (!byName[nk]) byName[nk] = { tv: 0, tq: 0 };
+        byName[nk].tv += s.total;
+        byName[nk].tq += s.qty;
+      }
+    });
+    const avg = (v: { tv: number; tq: number }) => v.tq > 0 ? v.tv / v.tq : 0;
+    return {
+      byCode: Object.fromEntries(Object.entries(byCode).map(([k, v]) => [k, avg(v)])),
+      byName: Object.fromEntries(Object.entries(byName).map(([k, v]) => [k, avg(v)])),
+    };
+  }, [sales]);
+
+  // Enrich orders: resolve unitPrice (product setup → sales avg → 0)
   const enriched = useMemo(() =>
     lostOrders.map(o => {
       let unitPrice = o.unitPrice;
@@ -46,10 +69,15 @@ export function LostOrders() {
         const setup = productSetups.find(p => p.code === o.code && p.div === o.div);
         if (setup?.unitPrice) unitPrice = setup.unitPrice;
       }
+      if (unitPrice === 0) {
+        unitPrice = (o.code ? salesPrice.byCode[`${o.code}|${o.div}`] : 0)
+          || salesPrice.byName[`${o.product.toLowerCase()}|${o.div}`]
+          || 0;
+      }
       const valueLost = o.qtyLost * unitPrice;
       return { ...o, unitPrice, valueLost };
     }),
-    [lostOrders, productSetups]
+    [lostOrders, productSetups, salesPrice]
   );
 
   const totalValue = enriched.reduce((s, o) => s + o.valueLost, 0);
