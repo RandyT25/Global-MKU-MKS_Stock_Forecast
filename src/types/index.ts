@@ -135,6 +135,7 @@ export interface DeliveryRow {
   div: Div;
   date: string;
   soNumber: string;
+  wilayah: string;
   customer: string;
   sales: string;
   code: string;
@@ -144,5 +145,5 @@ export interface DeliveryRow {
   unit: string;
   qtyKirim: number;
   qtySisa: number;
-  notes: string;
+  ket: string;
 }

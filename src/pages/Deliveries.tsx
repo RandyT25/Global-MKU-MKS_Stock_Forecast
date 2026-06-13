@@ -8,9 +8,15 @@ import type { LostOrder } from '../types';
 type DivTab = 'MKU' | 'MKS';
 type StatusFilter = 'ALL' | 'FULFILLED' | 'UNFULFILLED' | 'PARTIAL';
 
-function deliveryStatus(qtsSO: number, qtyKirim: number): 'FULFILLED' | 'UNFULFILLED' | 'PARTIAL' {
-  if (qtyKirim <= 0 && qtsSO > 0) return 'UNFULFILLED';
-  if (qtyKirim >= qtsSO)          return 'FULFILLED';
+function deliveryStatus(qtySO: number, qtyKirim: number, ket?: string): 'FULFILLED' | 'UNFULFILLED' | 'PARTIAL' {
+  if (ket) {
+    const k = ket.toUpperCase();
+    if (k === 'FULFILLED')   return 'FULFILLED';
+    if (k === 'UNFULFILLED') return 'UNFULFILLED';
+    if (k === 'PARTIAL')     return 'PARTIAL';
+  }
+  if (qtyKirim <= 0 && qtySO > 0) return 'UNFULFILLED';
+  if (qtyKirim >= qtySO)          return 'FULFILLED';
   return 'PARTIAL';
 }
 
@@ -36,7 +42,7 @@ export function Deliveries() {
   const rows = tab === 'MKU' ? deliveryMku : deliveryMks;
 
   const withStatus = useMemo(() =>
-    rows.map(r => ({ ...r, _status: deliveryStatus(r.qtySO, r.qtyKirim) })),
+    rows.map(r => ({ ...r, _status: deliveryStatus(r.qtySO, r.qtyKirim, r.ket) })),
     [rows]);
 
   const filtered = useMemo(() => {
@@ -115,7 +121,7 @@ export function Deliveries() {
         showModeToggle
         onData={handleData}
         onClear={() => (tab === 'MKU' ? setDeliveryMku : setDeliveryMks)([])}
-        pasteHint="No. Urut&#9;Tgl. Kirim&#9;No. SO&#9;Nama Customer&#9;Nama Sales&#9;Kode Brg&#9;Nama Barang&#9;Nama Merk&#9;SO(Kg)&#9;Sat Std&#9;BS(Pcs)&#9;KETERANGAN"
+        pasteHint="No. Urut&#9;Tgl. Kirim&#9;No. SO&#9;Wilayah&#9;Nama Cust&#9;Nama Sales&#9;Kode Brg&#9;Nama Brg&#9;Merk Brg&#9;Qty SO&#9;Satuan&#9;Qty BS&#9;KET"
       />
 
       {rows.length > 0 && (
@@ -160,28 +166,32 @@ export function Deliveries() {
                   <tr className="text-gray-500 text-xs uppercase border-b border-gray-200">
                     <th className="px-3 py-2 text-left">Date</th>
                     <th className="px-3 py-2 text-left">SO Number</th>
+                    <th className="px-3 py-2 text-left">Wilayah</th>
                     <th className="px-3 py-2 text-left">Customer</th>
+                    <th className="px-3 py-2 text-left">Sales</th>
                     <th className="px-3 py-2 text-left">Code</th>
                     <th className="px-3 py-2 text-left">Product</th>
                     <th className="px-3 py-2 text-left">Brand</th>
                     <th className="px-3 py-2 text-right">SO Qty</th>
+                    <th className="px-3 py-2 text-left">Unit</th>
                     <th className="px-3 py-2 text-right">BS Qty</th>
                     <th className="px-3 py-2 text-right">Sisa</th>
-                    <th className="px-3 py-2 text-left">Status</th>
-                    <th className="px-3 py-2 text-left">Sales</th>
-                    <th className="px-3 py-2 text-left">Notes</th>
+                    <th className="px-3 py-2 text-left">KET</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {filtered.slice(0, 500).map((row, i) => (
                     <tr key={i} className={`${ROW_BG[row._status]} hover:brightness-95`}>
-                      <td className="px-3 py-1.5 text-xs text-gray-500">{row.date}</td>
-                      <td className="px-3 py-1.5 font-mono text-xs">{row.soNumber}</td>
+                      <td className="px-3 py-1.5 text-xs text-gray-500 whitespace-nowrap">{row.date}</td>
+                      <td className="px-3 py-1.5 font-mono text-xs whitespace-nowrap">{row.soNumber}</td>
+                      <td className="px-3 py-1.5 text-xs text-gray-500 max-w-[140px] truncate">{row.wilayah}</td>
                       <td className="px-3 py-1.5 font-medium text-gray-800 max-w-[160px] truncate">{row.customer}</td>
+                      <td className="px-3 py-1.5 text-xs text-gray-500 max-w-[100px] truncate">{row.sales}</td>
                       <td className="px-3 py-1.5 font-mono text-xs text-gray-400">{row.code}</td>
                       <td className="px-3 py-1.5 text-gray-700 max-w-[160px] truncate">{row.product}</td>
-                      <td className="px-3 py-1.5 text-xs text-gray-400">{row.brand}</td>
+                      <td className="px-3 py-1.5 text-xs text-gray-400 whitespace-nowrap">{row.brand}</td>
                       <td className="px-3 py-1.5 text-right font-mono">{row.qtySO.toLocaleString('id-ID', { maximumFractionDigits: 2 })}</td>
+                      <td className="px-3 py-1.5 text-xs text-gray-400">{row.unit}</td>
                       <td className="px-3 py-1.5 text-right font-mono text-green-600">{row.qtyKirim.toLocaleString('id-ID', { maximumFractionDigits: 2 })}</td>
                       <td className={`px-3 py-1.5 text-right font-mono font-semibold ${row.qtySisa > 0 ? 'text-red-600' : 'text-gray-400'}`}>
                         {row.qtySisa.toLocaleString('id-ID', { maximumFractionDigits: 2 })}
@@ -189,15 +199,13 @@ export function Deliveries() {
                       <td className="px-3 py-1.5">
                         <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${STATUS_COLOR[row._status]}`}>{row._status}</span>
                       </td>
-                      <td className="px-3 py-1.5 text-xs text-gray-500">{row.sales}</td>
-                      <td className="px-3 py-1.5 text-xs text-gray-400 max-w-[120px] truncate">{row.notes}</td>
                     </tr>
                   ))}
                   {filtered.length > 500 && (
-                    <tr><td colSpan={12} className="px-3 py-2 text-center text-xs text-gray-400">Showing first 500 of {filtered.length.toLocaleString()} rows</td></tr>
+                    <tr><td colSpan={13} className="px-3 py-2 text-center text-xs text-gray-400">Showing first 500 of {filtered.length.toLocaleString()} rows</td></tr>
                   )}
                   {filtered.length === 0 && (
-                    <tr><td colSpan={12} className="px-3 py-8 text-center text-gray-400">No matching delivery records</td></tr>
+                    <tr><td colSpan={13} className="px-3 py-8 text-center text-gray-400">No matching delivery records</td></tr>
                   )}
                 </tbody>
               </table>

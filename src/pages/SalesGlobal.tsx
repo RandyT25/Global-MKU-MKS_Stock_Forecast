@@ -96,7 +96,7 @@ export function SalesGlobal() {
               <div className="text-2xl font-bold text-gray-900 mt-1">{totalQty.toLocaleString('id-ID', { maximumFractionDigits: 0 })}</div>
             </div>
             <div className="bg-white rounded-xl border border-gray-200 p-4 col-span-2">
-              <div className="text-sm text-gray-500">Total Amount (filtered)</div>
+              <div className="text-sm text-gray-500">Total DPP (filtered)</div>
               <div className="text-2xl font-bold text-blue-700 mt-1">{formatRp(totalValue)}</div>
             </div>
           </div>
@@ -152,7 +152,7 @@ export function SalesGlobal() {
             </div>
 
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
-              <h3 className="font-semibold text-gray-900 mb-3">Top Products (by Amount)</h3>
+              <h3 className="font-semibold text-gray-900 mb-3">Top Products (by DPP)</h3>
               <div className="space-y-2">
                 {topProducts.map((p, i) => (
                   <div key={i} className="flex justify-between items-start gap-2">
@@ -180,7 +180,7 @@ export function SalesGlobal() {
                     <th className="px-3 py-2 text-left">Code</th>
                     <th className="px-3 py-2 text-left">Product</th>
                     <th className="px-3 py-2 text-right">Qty</th>
-                    <th className="px-3 py-2 text-right">Amount (Rp)</th>
+                    <th className="px-3 py-2 text-right">DPP (Rp)</th>
                     <th className="px-3 py-2 text-left">Sales</th>
                     <th className="px-3 py-2 text-left">Type</th>
                     <th className="px-3 py-2 text-left">Month</th>

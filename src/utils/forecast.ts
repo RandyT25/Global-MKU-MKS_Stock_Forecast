@@ -182,14 +182,15 @@ function toHeader(line: string): string[] {
 }
 
 // ── Delivery parser ──────────────────────────────────────────────────────────
-// Real headers: No. Urut | Tgl. Kirim | No. SO | Nama Customer | Nama Sales |
-//               Kode Brg | Nama Barang | Nama Merk | SO(Kg) | Sat Std | BS(Pcs) | KETERANGAN
-// Rows without a No. Urut value inherit SO/Customer/Sales from the row above.
+// Supports both old headers (SO(Kg)/BS(Pcs)/KETERANGAN) and current headers:
+// No. Urut | Tgl. Kirim | No. SO | Wilayah | Nama Cust | Nama Sales |
+// Kode Brg | Nama Brg | Merk Brg | Qty SO | Satuan | Qty BS | KET
+// Rows without a No. Urut value inherit SO/Wilayah/Customer/Sales from the row above.
 export function parseDeliveryCSV(text: string, div: Div): DeliveryRow[] {
   const rawLines = text.trim().split('\n');
   if (rawLines.length < 2) return [];
 
-  const hi = findHeaderRow(rawLines, ['urut', 'kirim', 'customer', 'barang', 'keterangan']);
+  const hi = findHeaderRow(rawLines, ['urut', 'kirim', 'brg', 'so']);
   const header = toHeader(rawLines[hi]);
   const dataLines = rawLines.slice(hi + 1);
 
@@ -197,6 +198,7 @@ export function parseDeliveryCSV(text: string, div: Div): DeliveryRow[] {
     seq:      header.findIndex(h => h.includes('urut')),
     date:     header.findIndex(h => h.includes('tgl') || h.includes('kirim')),
     so:       header.findIndex(h => h.includes('no') && h.includes('so')),
+    wilayah:  header.findIndex(h => h === 'wilayah'),
     customer: header.findIndex(h => h.includes('customer') || (h.includes('nama') && h.includes('cust'))),
     sales:    header.findIndex(h => h.includes('sales') && !h.includes('so')),
     code:     header.findIndex(h => h.includes('kode') && (h.includes('brg') || h.includes('barang'))),
@@ -205,18 +207,27 @@ export function parseDeliveryCSV(text: string, div: Div): DeliveryRow[] {
       (h.includes('nama') && h.includes('brg') && !h.includes('merk'))),
     brand:    header.findIndex(h => h.includes('merk')),
     qtySO:    (() => {
-      // "SO(Kg)" starts with "so(" — must not match "No. SO"
+      // "SO(Kg)" starts with "so(" | "Qty SO" contains qty+so
       const i = header.findIndex(h => /^so\s*\(/.test(h));
       if (i >= 0) return i;
+      const j = header.findIndex(h => h.includes('qty') && h.includes('so'));
+      if (j >= 0) return j;
       return header.findIndex(h => h === 'so(kg)' || h === 'so');
     })(),
-    unit:     header.findIndex(h => h.includes('sat') && (h.includes('std') || h === 'sat std')),
+    unit:     (() => {
+      const i = header.findIndex(h => h.includes('sat') && (h.includes('std') || h === 'sat std'));
+      if (i >= 0) return i;
+      return header.findIndex(h => h === 'satuan' || h === 'sat');
+    })(),
     qtyKirim: (() => {
+      // "BS(Pcs)" starts with "bs(" | "Qty BS" contains qty+bs
       const i = header.findIndex(h => /^bs\s*\(/.test(h));
       if (i >= 0) return i;
+      const j = header.findIndex(h => h.includes('qty') && h.includes('bs'));
+      if (j >= 0) return j;
       return header.findIndex(h => h === 'bs(pcs)' || h === 'bs');
     })(),
-    notes:    header.findIndex(h => h === 'keterangan' || h === 'ket'),
+    ket:      header.findIndex(h => h === 'ket' || h === 'keterangan'),
   };
 
   if (idx.product === -1) return [];
@@ -224,6 +235,7 @@ export function parseDeliveryCSV(text: string, div: Div): DeliveryRow[] {
   const rows: DeliveryRow[] = [];
   let lastDate = '';
   let lastSO = '';
+  let lastWilayah = '';
   let lastCustomer = '';
   let lastSales = '';
 
@@ -235,6 +247,7 @@ export function parseDeliveryCSV(text: string, div: Div): DeliveryRow[] {
     if (hasSeq) {
       if (idx.date >= 0)     lastDate     = cols[idx.date]?.trim()     || lastDate;
       if (idx.so >= 0)       lastSO       = cols[idx.so]?.trim()       || lastSO;
+      if (idx.wilayah >= 0)  lastWilayah  = cols[idx.wilayah]?.trim()  || lastWilayah;
       if (idx.customer >= 0) lastCustomer = cols[idx.customer]?.trim() || lastCustomer;
       if (idx.sales >= 0)    lastSales    = cols[idx.sales]?.trim()    || lastSales;
     }
@@ -242,13 +255,14 @@ export function parseDeliveryCSV(text: string, div: Div): DeliveryRow[] {
     const product = cols[idx.product]?.trim() || '';
     if (!product || product === 'NaN') return;
 
-    const qtySO    = idx.qtySO    >= 0 ? parseFloat(cols[idx.qtySO])    || 0 : 0;
-    const qtyKirim = idx.qtyKirim >= 0 ? parseFloat(cols[idx.qtyKirim]) || 0 : 0;
+    const qtySO    = idx.qtySO    >= 0 ? parseIdrNum(cols[idx.qtySO])    : 0;
+    const qtyKirim = idx.qtyKirim >= 0 ? parseIdrNum(cols[idx.qtyKirim]) : 0;
 
     rows.push({
       div,
       date:     lastDate,
       soNumber: lastSO,
+      wilayah:  lastWilayah,
       customer: lastCustomer,
       sales:    lastSales,
       code:     idx.code  >= 0 ? cols[idx.code]?.trim()  || '' : '',
@@ -258,7 +272,7 @@ export function parseDeliveryCSV(text: string, div: Div): DeliveryRow[] {
       unit:     idx.unit  >= 0 ? cols[idx.unit]?.trim()  || '' : '',
       qtyKirim,
       qtySisa:  Math.max(0, qtySO - qtyKirim),
-      notes:    idx.notes >= 0 ? cols[idx.notes]?.trim() || '' : '',
+      ket:      idx.ket   >= 0 ? cols[idx.ket]?.trim()   || '' : '',
     });
   });
 
