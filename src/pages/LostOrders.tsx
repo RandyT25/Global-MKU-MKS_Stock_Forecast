@@ -62,6 +62,16 @@ export function LostOrders() {
     };
   }, [sales]);
 
+  // Debug: log lookup diagnostics to console
+  const debugInfo = useMemo(() => {
+    const rows = lostOrders.map(o => {
+      const codeHit  = o.code ? (salesPrice.byCode[o.code] ?? null) : null;
+      const nameHit  = salesPrice.byName[o.product.toLowerCase()] ?? null;
+      return { product: o.product, code: o.code ?? '—', codeHit, nameHit };
+    });
+    return { salesCount: sales.length, codeKeys: Object.keys(salesPrice.byCode).length, nameKeys: Object.keys(salesPrice.byName).length, rows };
+  }, [lostOrders, sales, salesPrice]);
+
   // Enrich orders: resolve unitPrice — stored → product setup → sales avg by code → sales avg by name
   const enriched = useMemo(() =>
     lostOrders.map(o => {
@@ -133,6 +143,26 @@ export function LostOrders() {
           <div className="text-2xl font-bold text-orange-700 mt-1">{formatRp(95879645.88)}</div>
         </div>
       </div>
+
+      {/* Temporary price-lookup diagnostic — remove once prices show */}
+      <details className="mb-4 text-xs border border-yellow-300 bg-yellow-50 rounded-lg p-3">
+        <summary className="font-semibold text-yellow-800 cursor-pointer">
+          Price lookup debug — sales: {debugInfo.salesCount} rows &nbsp;|&nbsp; byCode: {debugInfo.codeKeys} entries &nbsp;|&nbsp; byName: {debugInfo.nameKeys} entries
+        </summary>
+        <table className="mt-2 w-full text-xs">
+          <thead><tr className="text-gray-500"><th className="text-left pr-3">Product</th><th className="text-left pr-3">Code</th><th className="text-right pr-3">By code</th><th className="text-right">By name</th></tr></thead>
+          <tbody>
+            {debugInfo.rows.map((r, i) => (
+              <tr key={i} className={r.codeHit || r.nameHit ? 'text-green-700' : 'text-red-600'}>
+                <td className="pr-3 max-w-[220px] truncate">{r.product}</td>
+                <td className="pr-3">{r.code}</td>
+                <td className="text-right pr-3">{r.codeHit != null ? formatRp(r.codeHit) : '—'}</td>
+                <td className="text-right">{r.nameHit != null ? formatRp(r.nameHit) : '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </details>
 
       <div className="grid grid-cols-4 gap-6">
         {/* Main table */}
