@@ -6,6 +6,15 @@ import { computeForecast } from '../utils/forecast';
 import { StatusBadge, getStatusColor } from '../components/StatusBadge';
 import type { StockStatus, Div } from '../types';
 
+const STATUS_CARDS = [
+  { status: 'OUT OF STOCK'   as StockStatus, color: 'bg-red-600',    text: 'text-white',     label: 'Out of Stock' },
+  { status: 'PO OVERDUE'     as StockStatus, color: 'bg-red-400',    text: 'text-white',     label: 'PO Overdue' },
+  { status: 'ORDER THIS WEEK'as StockStatus, color: 'bg-orange-500', text: 'text-white',     label: 'Order This Week' },
+  { status: 'ORDER SOON'     as StockStatus, color: 'bg-green-500',  text: 'text-white',     label: 'Order Soon' },
+  { status: 'MONITOR'        as StockStatus, color: 'bg-yellow-400', text: 'text-gray-900',  label: 'Monitor' },
+  { status: 'OK'             as StockStatus, color: 'bg-emerald-500',text: 'text-white',     label: 'OK' },
+];
+
 export function ForecastEngine({ initialStatus = 'ALL' }: { initialStatus?: string }) {
   const { mkuStock, mksStock, productSetups, deals, settings } = useAppStore();
   const [search, setSearch] = useState('');
@@ -54,19 +63,23 @@ export function ForecastEngine({ initialStatus = 'ALL' }: { initialStatus?: stri
         <p className="text-sm text-gray-500 mt-0.5">Auto-calculated from stock input. Daily Rate = (Mar Sales ÷ 31 or 3M Avg ÷ 30) × (1 + {settings.safetyBufferPct}% buffer) + new deal volume</p>
       </div>
 
-      {/* Summary pills */}
-      <div className="flex flex-wrap gap-2 mb-4">
-        {['OUT OF STOCK', 'PO OVERDUE', 'ORDER THIS WEEK', 'ORDER SOON', 'MONITOR', 'OK'].map(s => (
-          <button
-            key={s}
-            onClick={() => setFilterStatus(filterStatus === s as StockStatus ? 'ALL' : s as StockStatus)}
-            className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
-              filterStatus === s ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
-            }`}
-          >
-            {s}: {counts[s] || 0}
-          </button>
-        ))}
+      {/* Status cards — click to filter */}
+      <div className="grid grid-cols-6 gap-3 mb-4">
+        {STATUS_CARDS.map(cfg => {
+          const active = filterStatus === cfg.status;
+          return (
+            <button
+              key={cfg.status}
+              onClick={() => setFilterStatus(active ? 'ALL' : cfg.status)}
+              className={`${cfg.color} ${cfg.text} rounded-lg p-4 text-center shadow-sm hover:opacity-90 transition-all ${
+                active ? 'ring-4 ring-offset-2 ring-gray-800 scale-[1.03]' : ''
+              }`}
+            >
+              <div className="text-3xl font-bold">{counts[cfg.status] || 0}</div>
+              <div className="text-xs font-medium mt-1 opacity-90">{cfg.label}</div>
+            </button>
+          );
+        })}
       </div>
 
       {/* Filters */}
