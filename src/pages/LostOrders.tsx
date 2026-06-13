@@ -38,30 +38,31 @@ export function LostOrders() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Build average unit price from sales history: code+div → avg DPP per unit
+  // Build average unit price from sales history (keyed by code only, then by product name only)
   const salesPrice = useMemo(() => {
     const byCode: Record<string, { tv: number; tq: number }> = {};
     const byName: Record<string, { tv: number; tq: number }> = {};
     sales.forEach(s => {
       if (s.qty > 0 && s.total > 0) {
-        const ck = `${s.code}|${s.div}`;
-        if (!byCode[ck]) byCode[ck] = { tv: 0, tq: 0 };
-        byCode[ck].tv += s.total;
-        byCode[ck].tq += s.qty;
-        const nk = `${s.product.toLowerCase()}|${s.div}`;
+        if (s.code) {
+          if (!byCode[s.code]) byCode[s.code] = { tv: 0, tq: 0 };
+          byCode[s.code].tv += s.total;
+          byCode[s.code].tq += s.qty;
+        }
+        const nk = s.product.toLowerCase();
         if (!byName[nk]) byName[nk] = { tv: 0, tq: 0 };
         byName[nk].tv += s.total;
         byName[nk].tq += s.qty;
       }
     });
-    const avg = (v: { tv: number; tq: number }) => v.tq > 0 ? v.tv / v.tq : 0;
+    const avg = (acc: { tv: number; tq: number }) => acc.tq > 0 ? acc.tv / acc.tq : 0;
     return {
       byCode: Object.fromEntries(Object.entries(byCode).map(([k, v]) => [k, avg(v)])),
       byName: Object.fromEntries(Object.entries(byName).map(([k, v]) => [k, avg(v)])),
     };
   }, [sales]);
 
-  // Enrich orders: resolve unitPrice (product setup → sales avg → 0)
+  // Enrich orders: resolve unitPrice — stored → product setup → sales avg by code → sales avg by name
   const enriched = useMemo(() =>
     lostOrders.map(o => {
       let unitPrice = o.unitPrice;
@@ -69,13 +70,9 @@ export function LostOrders() {
         const setup = productSetups.find(p => p.code === o.code && p.div === o.div);
         if (setup?.unitPrice) unitPrice = setup.unitPrice;
       }
-      if (unitPrice === 0) {
-        unitPrice = (o.code ? salesPrice.byCode[`${o.code}|${o.div}`] : 0)
-          || salesPrice.byName[`${o.product.toLowerCase()}|${o.div}`]
-          || 0;
-      }
-      const valueLost = o.qtyLost * unitPrice;
-      return { ...o, unitPrice, valueLost };
+      if (unitPrice === 0 && o.code) unitPrice = salesPrice.byCode[o.code] ?? 0;
+      if (unitPrice === 0)           unitPrice = salesPrice.byName[o.product.toLowerCase()] ?? 0;
+      return { ...o, unitPrice, valueLost: o.qtyLost * unitPrice };
     }),
     [lostOrders, productSetups, salesPrice]
   );
